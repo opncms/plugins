@@ -16,7 +16,7 @@
 #include <booster/function.h>
 #include <opncms/base.h>
 
-#define USER_MIN_NANE 6
+#define USER_MIN_NAME 6
 #define USER_MIN_EMAIL 8
 #define USER_MIN_PASSWORD 8
 

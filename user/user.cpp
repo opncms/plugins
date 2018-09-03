@@ -155,7 +155,7 @@ signup_edit_form::signup_edit_form()
 	password.non_empty();
 	confirm.non_empty();
 
-	username.size(USER_MIN_NANE); //minimal user name
+	username.size(USER_MIN_NAME); //minimal user name
 	email.size(USER_MIN_EMAIL);
 	password.size(USER_MIN_PASSWORD);
 	confirm.size(USER_MIN_PASSWORD);
