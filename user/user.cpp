@@ -9,7 +9,10 @@
 
 #include <cppcms/url_dispatcher.h>
 #include <cppcms/url_mapper.h>
+
+#if !(__cplusplus>=201103L)
 #include <boost/assign/list_of.hpp>
+#endif
 
 #include <booster/log.h>
 
@@ -725,8 +728,12 @@ public:
 		bind("reset",cppcms::rpc::json_method(&user_rpc::reset,this),method_role);
 		//bind("salt",cppcms::rpc::json_method(&user_rpc::salt,this),method_role);
 		
+#if __cplusplus>=201103L
+		methods_ = { "system.listMethods", "signin", "signup", "signout", "reset" };
+#else
 		methods_ = boost::assign::list_of ("system.listMethods")("signin")("signup")("signout")("reset");
 		BOOST_ASSERT( methods_.size() == 5 );
+#endif
 	}
 
 	virtual void methods()
