@@ -1,4 +1,4 @@
-////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
 //
 //  Copyright (C) 2013-2018 Vladimir Yakunin (kpeo) <opncms@gmail.com>
 //
@@ -26,11 +26,11 @@
 #include "user.h"
 
 namespace user_sign {
-	const std::string name = "Users";
-	const std::string shortname = "user";
-	const std::string slug = "u";
-	const std::string version = "0.0.1";
-	const std::string api_version = "0.0.1";
+	const char name[] = "Users";
+	const char shortname[] = "user";
+	const char slug[] = "u";
+	const char version[] = "0.0.1";
+	const char api_version[] = "0.0.1";
 }
 
 //TODO it's "cheaper" to use the namespace, but:
@@ -227,6 +227,9 @@ public:
 		dispatcher().assign("/signup/?",&user::signup,this);
 		mapper().assign("signup","/signup");
 
+		dispatcher().assign("/signin/?",&user::signin,this);
+                mapper().assign("signin","/signin");
+
 		dispatcher().assign("/signout/?",&user::signup,this);
 		mapper().assign("signout","/signout");
 
@@ -253,15 +256,11 @@ public:
 	virtual bool post(content::signup& c)
 	{
 		cppcms::http::request& req = impl.view->request();
-		if (req.request_method()=="POST") {
+
+		if (req.request_method()=="POST")
+		{
 			BOOSTER_LOG(debug,__FUNCTION__) << "Content-Type=" << req.content_type();
-			
-			std::pair<void *,size_t> post_data = req.raw_post_data();
-			std::istringstream ss(std::string(reinterpret_cast<char const *>(post_data.first),post_data.second));
-			
-			//Should be disabled in production for security reasons
-			BOOSTER_LOG(debug,"ENV") << ss.str();
-		
+
 			if (!req.post("Signup").empty())
 			{
 				BOOSTER_LOG(debug,__FUNCTION__) << "POST signup form";
@@ -293,18 +292,12 @@ public:
 						c.alert_type = "danger";
 					} else {
 						//send verification hash
-						impl.send_email(user_email, user_name, "/u/verify/", hash, 0);
+						impl.send_email(user_email, user_name, std::string("/")+user_sign::slug+"/verify/", hash, 0);
 						BOOSTER_LOG(debug,__FUNCTION__) << "redirect to verify page";
 						return true;
 					}
 				}
 
-			}
-			else if (!req.post("Signin").empty())
-			{
-				BOOSTER_LOG(debug,__FUNCTION__) << "POST signin form";
-				BOOSTER_LOG(debug,__FUNCTION__) << "input.name=" << req.post("name");
-				BOOSTER_LOG(debug,__FUNCTION__) << "input.password=" << req.post("password");
 			}
 			else
 				BOOSTER_LOG(debug,__FUNCTION__) << "POST unknown data";
@@ -315,18 +308,62 @@ public:
 		return false;
 	}
 
+	virtual bool post(content::user& c)
+	{
+		cppcms::http::request& req = impl.view->request();
+
+		if (req.request_method()=="POST")
+		{
+                        BOOSTER_LOG(debug,__FUNCTION__) << "Content-Type=" << req.content_type();
+
+                        if (!req.post("signin").empty())
+                        {
+				std::string email = req.post("email");
+				std::string password = req.post("password");
+
+                                BOOSTER_LOG(debug,__FUNCTION__) << "POST signin form";
+                                //c.form.load(ioc::get<View>().context());
+                                BOOSTER_LOG(debug,__FUNCTION__) << "input.email=" << email;
+                                BOOSTER_LOG(debug,__FUNCTION__) << "input.password=" << (password) ? std::string("***") : "";
+
+                                if( impl.auth->ref().exists(email) )
+                                {
+                                        if (impl.auth->check(email,password)) {
+                                                BOOSTER_LOG(debug,__FUNCTION__) << "User " << email << " authorized";
+                                                if (!impl.data->session().is_exposed("email")) {
+                                                        BOOSTER_LOG(error,__FUNCTION__) << "Session is not exposed!";
+                                                }
+						impl.view->response().set_redirect_header(std::string("/")+user_sign::slug+"/profile");
+                                        }
+                                        else {
+                                                c.is_alert = true;
+                                                c.alert_text = "Wrong email or password";
+                                                c.alert_type = "danger";        
+                                        }
+                                } else {
+                                        c.is_alert = true;
+                                        c.alert_text = "Wrong email";
+                                        c.alert_type = "danger";        
+                                }
+
+                        }
+                        else
+                                BOOSTER_LOG(debug,__FUNCTION__) << "POST unknown data";
+                }
+                else
+                        BOOSTER_LOG(debug,__FUNCTION__) << " req != POST";
+
+                return false;
+	}
+
 	virtual int post(content::reset& c)
 	{
 		cppcms::http::request& req = impl.view->request();
-		if (req.request_method()=="POST") {
+
+		if (req.request_method()=="POST")
+		{
 			BOOSTER_LOG(debug,__FUNCTION__) << "Content-Type=" << req.content_type();
-			
-			std::pair<void *,size_t> post_data = req.raw_post_data();
-			std::istringstream ss(std::string(reinterpret_cast<char const *>(post_data.first),post_data.second));
-			
-			//Should be disabled in production for security reasons
-			BOOSTER_LOG(debug,"ENV") << ss.str();
-		
+
 			if (!req.post("Send").empty())
 			{
 				BOOSTER_LOG(debug,__FUNCTION__) << "POST send form";
@@ -358,14 +395,13 @@ public:
 				} else {
 					//send hash to email
 					BOOSTER_LOG(debug,__FUNCTION__) << "Send hash to email(" << reset_email << ")";
-					impl.send_email(reset_email, "user", "/u/reset/", hash, 1);
+					impl.send_email(reset_email, "user", std::string("/")+user_sign::slug+"/reset/", hash, 1);
 					return 1;
 				}
 			}
 			else if(!req.post("Reset").empty())
 			{
 				BOOSTER_LOG(debug,__FUNCTION__) << "POST reset form";
-
 				
 				std::string reset_password = req.post("password");
 				std::string reset_id = req.post("id");
@@ -396,32 +432,34 @@ public:
 	
 	virtual void display(const std::string page)
 	{
-		BOOSTER_LOG(debug, __FUNCTION__);
+		BOOSTER_LOG(debug, __FUNCTION__) << "display" << page;
 		content::user c;
 		//init base content first
 		impl.view->init(c);
 		impl.view->post(c);
 
-		//we get c.authed by View::post
-		if(c.authed) {
-			//some functions for authed users
-			BOOSTER_LOG(debug, __FUNCTION__) << "User is authed";
-		} else {
-			BOOSTER_LOG(debug, __FUNCTION__) << "User is not authed";
-			//signup();
-		}
-		if( impl.auth->ref().block(impl.auth->id()) )
+		if(!post(c))
 		{
-			c.is_alert = true;
-			c.alert_text = "Account is blocked, please reset your password";
-			c.alert_type = "danger";
-		}
-		int utype = impl.auth->user_type();
-		BOOSTER_LOG(debug,__FUNCTION__) << " user_type=" << utype;
+			//we get c.authed by View::post
+			if(c.authed) {
+				//some functions for authed users
+				BOOSTER_LOG(debug, __FUNCTION__) << "User is authed";
+			} else {
+				BOOSTER_LOG(debug, __FUNCTION__) << "User is not authed";
+				impl.view->response().set_redirect_header(std::string("/")+user_sign::slug+"/signin");
+			}
+			if( impl.auth->ref().block(impl.auth->id()) )
+			{
+				c.is_alert = true;
+				c.alert_text = "Account is blocked, please reset your password";
+				c.alert_type = "danger";
+			}
+			int utype = impl.auth->user_type();
+			BOOSTER_LOG(debug,__FUNCTION__) << " user_type=" << utype;
 		//std::string key="user_"+ab_.username()+"-"+tools::num2str<int>(utype)+"-"+((c.remind)?std::string("1"):std::string("0"))+":"+vb_.locale_name()+":"+upath;
 
-		c.name = name();
-
+			c.name = name();
+		}
 		render(shortname()+"_view", shortname(), c);
 	}
 
@@ -474,8 +512,31 @@ public:
 			render(shortname()+"_view", "signup", c);
 		}
 		else
-			impl.view->response().set_redirect_header("/u/verify");
+			impl.view->response().set_redirect_header(std::string("/")+user_sign::slug+"/verify");
 	}
+
+        virtual void signin()
+        {
+                BOOSTER_LOG(debug, __FUNCTION__);
+                content::user c;
+                //init base content first
+                impl.view->init(c);
+                impl.view->post(c);
+
+                if( !post(c) )
+                {
+                        BOOSTER_LOG(debug, __FUNCTION__) << "check authed";
+                        //if(impl.auth->auth()) {
+                        if(c.authed) {
+                                //some functions for authed users
+                                BOOSTER_LOG(debug, __FUNCTION__) << "user is authed";
+                        } else {
+                                BOOSTER_LOG(debug, __FUNCTION__) << "user is not authed";
+                        }
+                        c.name = "Signin";
+                }
+		render(shortname()+"_view", shortname(), c);
+        }
 
 	virtual void verify(const std::string id)
 	{
@@ -501,11 +562,11 @@ public:
 				//c.alert_text = "Please Sign-in";
 				//c.alert_type = "info";
 				//impl.auth->password(email, newpassword)
-				impl.view->response().set_redirect_header("/u");
+				impl.view->response().set_redirect_header(std::string("/")+user_sign::slug+"/signin");
 			} else {
 				BOOSTER_LOG(debug, __FUNCTION__) << "Account not verified";
 				c.is_alert = true;
-				c.alert_text = "Account is not verified, please check the code is correct";
+				c.alert_text = "Account is not verified or expired, please check the code is correct";
 				c.alert_type = "danger";
 			}
 		} else {
@@ -573,15 +634,11 @@ public:
 	virtual bool post(content::change_password& c)
 	{
 		cppcms::http::request& req = impl.view->request();
-		if (req.request_method()=="POST") {
+
+		if (req.request_method()=="POST")
+		{
 			BOOSTER_LOG(debug,__FUNCTION__) << "Content-Type=" << req.content_type();
 			
-			std::pair<void *,size_t> post_data = req.raw_post_data();
-			std::istringstream ss(std::string(reinterpret_cast<char const *>(post_data.first),post_data.second));
-			
-			//Should be disabled in production for security reasons
-			BOOSTER_LOG(debug,"ENV") << ss.str();
-
 			if(!req.post("Change").empty())
 			{
 				BOOSTER_LOG(debug,__FUNCTION__) << "POST change form";
@@ -591,6 +648,7 @@ public:
 				std::string email = req.post("email");
 
 				BOOSTER_LOG(debug,__FUNCTION__) << "email(" << email << ")";
+
 				if( email.empty() || oldpassword.empty() || newpassword.empty() )
 				{
 					c.is_alert = true;
@@ -636,7 +694,7 @@ public:
 			c.is_alert = true;
 			c.alert_text = "Password has changed";
 			c.alert_type = "info";
-			impl.view->response().set_redirect_header("/u/profile");
+			impl.view->response().set_redirect_header(std::string("/")+user_sign::slug+"/profile");
 		}
 		else
 			render(shortname()+"_view", "change_password", c);
@@ -680,25 +738,25 @@ public:
 	}
 
 	virtual std::string skin(){
-		return user_sign::shortname + "_view";
+		return std::string(user_sign::shortname) + "_view";
 	}
 	virtual std::string view(const std::string& s){
-		return user_sign::shortname + "_" + s;
+		return std::string(user_sign::shortname) + "_" + s;
 	}
 
-	virtual const std::string& name(){
+	virtual std::string name() const {
 		return user_sign::name;
 	}
-	virtual const std::string& shortname(){
+	virtual std::string shortname() const {
 		return user_sign::shortname;
 	}
-	virtual const std::string& slug(){
+	virtual std::string slug() const {
 		return user_sign::slug;
 	}
-	virtual const std::string& version(){
+	virtual std::string version() const {
 		return user_sign::version;
 	}
-	virtual tools::vec_str& map(){
+	virtual tools::vec_str& map() {
 		return map_;
 	}
 private:
@@ -716,9 +774,9 @@ public:
 	{
 		BOOSTER_LOG(debug, __FUNCTION__);
 
-		map_.push_back(std::string(user_sign::shortname+"_rpc"));
-		map_.push_back(std::string("/")+user_sign::slug+"_rpc/{1}");
-		map_.push_back(std::string("/")+user_sign::slug+"_rpc(/(.*))?");
+		map_.push_back(std::string(user_sign::shortname)+"_rpc");
+		map_.push_back(std::string("/")+std::string(user_sign::slug)+"_rpc/{1}");
+		map_.push_back(std::string("/")+std::string(user_sign::slug)+"_rpc(/(.*))?");
 		map_.push_back("2");
 
 		bind("system.listMethods",cppcms::rpc::json_method(&user_rpc::methods,this),method_role);
@@ -772,17 +830,15 @@ public:
 				rpc_result = true;
 			} else {
 				BOOSTER_LOG(debug,__FUNCTION__) << "Incorrect login, id(" << id << ")";
-				return_error("error");
+				return_error("Incorrect login");
 			}
 		} else {
 			BOOSTER_LOG(debug,__FUNCTION__) << "User " << id << " not validated. Please check the syntax";
-			return_error("error");
+			return_error("Can't validate user. Please check your inputs");
 		}
 	
 		if(rpc_result)
 			return_result("ok");
-//		else
-//			return_error("error");
 	}
 
 	virtual void signup(const std::string& email, const std::string& password, const std::string& name)
@@ -798,7 +854,7 @@ public:
 		//send code
 		
 		//send hash to email
-		impl.send_email(email, name, "/u/verify/", hash, 0);
+		impl.send_email(email, name, std::string("/")+user_sign::slug+"/verify/", hash, 0);
 
 		return_result("ok");
 	}
@@ -841,7 +897,7 @@ public:
 			return_error("Please, try again");
 
 		//send hash to email
-		impl.send_email(email, "user", "/u/reset/", hash, 1);
+		impl.send_email(email, "user", std::string("/")+user_sign::slug+"/reset/", hash, 1);
 
 		return_result("ok");
 	}

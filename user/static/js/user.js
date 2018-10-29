@@ -17,7 +17,7 @@ var user = {
         bindId : 'user', // class name
         preloading : true,
 
-        dpRPC : null,
+        RPC : null,
 
         install : function() {
         	user.addEvent(window, 'load', user.init);
@@ -25,23 +25,37 @@ var user = {
 
         init : function() 
 	{
+		var el;
+
 		if(user.binding) {
-			user.bind();
-		}
-		var el = document.getElementById('button-singin');
-		if( el != null ) {
-			el.onmousedown = function(e) {
-				var evt = window.event || e;
-				return;
-			}
-		}
-		user.rpc_init(user.rpc,1);
+                        user.bind();
+                }
+
+		user.rpc_init(user.rpc, true);
+
+		el = document.getElementById('button-signin');
+                if(el)
+                {
+                        el.onclick = function(e) {
+                                user.rpc_signin();
+                                return false;
+                        }
+                }
+                el = document.getElementById('button-signout');
+                if(el)
+                {
+                        el.onclick = function(e)
+                        {
+                                user.rpc_signout();
+                                return false;
+                        }
+                }
         },
         bind : function() {
 		//var e = document.getElementById(bindId);
 	},
 
-        addEvent : function(el, evnt, func) {
+        addEvent: function(el, evnt, func) {
 		if(el.addEventListener) {
 			el.addEventListener(evnt, func, false);
                 } else if(el.attachEvent) {
@@ -49,11 +63,22 @@ var user = {
                 }
         },
 
+	show_alert: function(el, text) {
+		el.innerHTML = text;
+		el.style.display = "block";
+	},
+
+	hide_alert: function(el) {
+		el.style.display = "none";
+	},
+
         rpc_init: function(res, async) {
                 try {
-                        user.dpRPC = new rpc.ServiceProxy(res, {
-                                asynchronous: (async ? true : false),  //default value, but if otherwise error raised
-                                sanitize: false     //explicit false required, otherwise error raised
+                        user.RPC = new JsonRpc.ServiceProxy(res, {
+                                asynchronous: true,  //default value, but if otherwise error raised
+                                sanitize: false,     //explicit false required, otherwise error raised
+				methods: ['signup','signin','signout'],
+				callbackParamName: 'callback'
                         });
                 }
                 catch(e){
@@ -61,6 +86,83 @@ var user = {
                 }
         },
 
+        rpc_signup: function() {
+                var email = document.getElementById('signup-email').value;
+		var name = document.getElementById('signup-name').value;
+                var password = document.getElementById('signup-password').value;
+		var confirm_password = document.getElementById('signup-confirm-password').value;
+		var signup_alert = document.getElementById('signup-alert');
+
+		if( password != confirm_password) {
+			show_alert(signup_alert, "The confirm password should match password");
+		}
+
+                JsonRpc.setAsynchronous(user.RPC, true);
+                user.RPC.signup({params:[ email, password, name ],
+                        onSuccess:function(resultObj)
+                        {
+				window.location.href = '/u/verify';
+                        },
+                        onException:function(errorObj)
+                        {
+				show_alert(signup_alert, errorObj.error);
+				
+                        },
+                        onComplete:function(responseObj)
+                        {
+                                if(responseObj && responseObj.error == null && responseObj.result == "ok") {
+                                        if(window.location.href.indexOf("#")>0)
+                                                window.location.href = window.location.href.split("#")[0];
+                                        setTimeout(location.reload(true), 1000);
+                                }
+                                else
+					show_alert(signup_alert, errorObj.error);
+                        }
+                });
+        },
+
+	rpc_signin: function() {
+                var email = document.getElementById('signin-email').value;
+                var password = document.getElementById('signin-password').value;
+
+                JsonRpc.setAsynchronous(user.RPC, true);
+                user.RPC.signin({params:[ email, password ],
+                        onSuccess:function(resultObj)
+                        {
+				window.location.href = '/u/profile';
+                        },
+                        onException:function(errorObj)
+                        {
+				show_alert(signup_alert, errorObj.error);
+                        },
+                        onComplete:function(responseObj)
+                        {
+                                if(responseObj && responseObj.error == null && responseObj.result == "ok") {
+                                        if(window.location.href.indexOf("#")>0)
+                                                window.location.href = window.location.href.split("#")[0];
+                                        setTimeout(location.reload(true), 1000);
+                                }
+                                else
+                                	show_alert(signin_alert, errorObj.error);
+                        }
+                });
+        },
+
+	rpc_signout: function() {
+                JsonRpc.setAsynchronous(user.RPC, true);
+                user.RPC.signout({params:[ ],
+                        onException:function(errorObj){
+                                alert("Exception: " + errorObj);
+                        },
+                        onComplete:function(responseObj){
+                                if(responseObj && responseObj.error == null && responseObj.result == "ok") {
+                                        if(window.location.href.indexOf("#")>0)
+                                                window.location.href = window.location.href.split("#")[0];
+                                        setTimeout(location.reload(true),1000);
+                                }
+                        }
+                });
+        }
 };
 
 user.install();
