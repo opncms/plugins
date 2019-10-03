@@ -44,6 +44,8 @@ struct signup_edit_form : public cppcms::form {
 	virtual bool validate();
 };
 
+//WARNING: Please do not override variables of base content initialized by View (e.g. authed could be filled with random data and lead to security issues)
+
 struct user : public base {
 	user_edit_form form;
 	std::string name;
@@ -77,13 +79,11 @@ struct reset : public base {
 struct profile : public base {
 	std::string name;
 	std::string email;
-	bool authed;
 };
 
 struct change_password : public base {
 	std::string name;
 	std::string email;
-	bool authed;
 };
 
 }

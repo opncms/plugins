@@ -429,7 +429,7 @@ public:
 
 		return 0;
 	}
-	
+
 	virtual void display(const std::string page)
 	{
 		BOOSTER_LOG(debug, __FUNCTION__) << "display" << page;
@@ -463,6 +463,19 @@ public:
 		render(shortname()+"_view", shortname(), c);
 	}
 
+	virtual bool post(content::profile& c)
+	{
+		cppcms::http::request& req = impl.view->request();
+
+		if (req.request_method()=="POST")
+		{
+			 BOOSTER_LOG(debug,__FUNCTION__) << "Content-Type=" << req.content_type();
+		}
+		else
+			BOOSTER_LOG(debug,__FUNCTION__) << " req != POST";
+		return false;
+	}
+
 	virtual void profile(const std::string page)
 	{
 		BOOSTER_LOG(debug, __FUNCTION__);
@@ -473,20 +486,29 @@ public:
 
 		//we get c.authed from View::post
 		//c.authed = impl.auth->auth();
-		if(c.authed) {
-			//some functions for authed users
-			BOOSTER_LOG(debug, __FUNCTION__) << "User is authed";
-		} else {
-			BOOSTER_LOG(debug, __FUNCTION__) << "User is not authed";
-			//signup();
+		BOOSTER_LOG(debug, __FUNCTION__) << "authed=" << c.authed;
+		if(!post(c)) {
+			BOOSTER_LOG(debug, __FUNCTION__) << "authed=" << c.authed;
+			if(c.authed) {
+				//some functions for authed users
+				BOOSTER_LOG(debug, __FUNCTION__) << "User is authed";
+			} else {
+				BOOSTER_LOG(debug, __FUNCTION__) << "User is not authed";
+			impl.view->response().set_redirect_header(std::string("/")+user_sign::slug+"/signin");
+                        }
+                        if( impl.auth->ref().block(impl.auth->id()) )
+                        {
+                                c.is_alert = true;
+                                c.alert_text = "Account is blocked, please reset your password";
+                                c.alert_type = "danger";
+                        }
+                        int utype = impl.auth->user_type();
+
+			BOOSTER_LOG(debug,__FUNCTION__) << " user_type=" << utype;
+			//std::string key="user_"+ab_.username()+"-"+tools::num2str<int>(utype)+"-"+((c.remind)?std::string("1"):std::string("0"))+":"+vb_.locale_name()+":"+upath;
+
+			c.name = name();
 		}
-
-		int utype = impl.auth->user_type();
-		BOOSTER_LOG(debug,__FUNCTION__) << " user_type=" << utype;
-		//std::string key="user_"+ab_.username()+"-"+tools::num2str<int>(utype)+"-"+((c.remind)?std::string("1"):std::string("0"))+":"+vb_.locale_name()+":"+upath;
-
-		c.name = name();
-
 		render(shortname()+"_view", "profile", c);
 	}
 
